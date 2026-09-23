@@ -3,71 +3,72 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
-    <title>One Piece - Luffy Character Test</title>
+    <title>One Piece - Luffy Playable Demo</title>
     <style>
-        body { margin: 0; overflow: hidden; background: #87CEEB; touch-action: none; }
+        body { margin: 0; overflow: hidden; background: #87CEEB; touch-action: none; font-family: sans-serif; }
         canvas { display: block; }
-        #ui { position: absolute; top: 15px; left: 15px; color: white; font-family: sans-serif; font-weight: bold; text-shadow: 2px 2px 4px #000; }
+        #ui { position: absolute; top: 15px; left: 15px; color: white; font-weight: bold; text-shadow: 2px 2px 4px #000; pointer-events: none; }
+        
+        /* Touch Controls */
+        #joystick-zone { position: absolute; bottom: 30px; left: 30px; width: 120px; height: 120px; background: rgba(255,255,255,0.2); border-radius: 50%; border: 2px solid rgba(255,255,255,0.5); }
+        #joystick-knob { position: absolute; top: 35px; left: 35px; width: 50px; height: 50px; background: rgba(255,255,255,0.8); border-radius: 50%; }
+        #attack-btn { position: absolute; bottom: 40px; right: 40px; width: 80px; height: 80px; background: #d90429; color: white; border-radius: 50%; border: 3px solid white; font-weight: bold; font-size: 16px; box-shadow: 0 4px 10px rgba(0,0,0,0.3); }
+        #attack-btn:active { transform: scale(0.9); background: #ef233c; }
     </style>
+    <!-- Stable Three.js Library -->
     <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
 </head>
 <body>
 
 <div id="ui">
     <h2>MONKEY D. LUFFY</h2>
-    <p>Alabasta Kingdom - Preview</p>
+    <p>Location: Alabasta Kingdom</p>
 </div>
 
+<!-- Touch UI -->
+<div id="joystick-zone"><div id="joystick-knob"></div></div>
+<button id="attack-btn">PUNCH</button>
+
 <script>
-    // 1. Scene setup, Camera & Renderer
+    // 1. Scene, Camera & Renderer
     const scene = new THREE.Scene();
-    scene.background = new THREE.Color(0x87CEEB); // Alabasta Blue Sky
-    scene.fog = new THREE.FogExp2(0xedc9af, 0.012); // Desert Sand Fog
+    scene.background = new THREE.Color(0x87CEEB);
 
     const camera = new THREE.PerspectiveCamera(60, window.innerWidth / window.innerHeight, 0.1, 1000);
-    camera.position.set(0, 3, 6);
-
     const renderer = new THREE.WebGLRenderer({ antialias: true });
     renderer.setSize(window.innerWidth, window.innerHeight);
     renderer.shadowMap.enabled = true;
     document.body.appendChild(renderer.domElement);
 
     // Lights
-    const ambientLight = new THREE.AmbientLight(0xffffff, 0.7);
+    const ambientLight = new THREE.AmbientLight(0xffffff, 0.8);
     scene.add(ambientLight);
 
-    const dirLight = new THREE.DirectionalLight(0xfffaed, 0.9);
+    const dirLight = new THREE.DirectionalLight(0xfffaed, 0.8);
     dirLight.position.set(10, 20, 10);
     dirLight.castShadow = true;
     scene.add(dirLight);
 
-    // Ground Floor (Desert Sand)
-    const sandGeo = new THREE.PlaneGeometry(100, 100);
+    // Sand Ground
+    const sandGeo = new THREE.PlaneGeometry(200, 200);
     const sandMat = new THREE.MeshStandardMaterial({ color: 0xedc9af, roughness: 0.9 });
     const ground = new THREE.Mesh(sandGeo, sandMat);
     ground.rotation.x = -Math.PI / 2;
     ground.receiveShadow = true;
     scene.add(ground);
 
-    // =====================================================
-    // 2. IMPROVED LUFFY-STYLE CHARACTER
-    // =====================================================
-
+    // 2. Luffy Character Setup (Using Stable Geometries)
     const luffyGroup = new THREE.Group();
 
-    // MATERIALS
-    const skinMat = new THREE.MeshStandardMaterial({ color: 0xf0b27a, roughness: 0.65 });
-    const redVestMat = new THREE.MeshStandardMaterial({ color: 0xc91429, roughness: 0.5 });
-    const redDarkMat = new THREE.MeshStandardMaterial({ color: 0x8e0d1d, roughness: 0.6 });
-    const blueShortsMat = new THREE.MeshStandardMaterial({ color: 0x1769aa, roughness: 0.65 });
-    const yellowSashMat = new THREE.MeshStandardMaterial({ color: 0xf4c430, roughness: 0.55 });
-    const strawMat = new THREE.MeshStandardMaterial({ color: 0xe6b84f, roughness: 0.85 });
-    const hatRedMat = new THREE.MeshStandardMaterial({ color: 0xb51225, roughness: 0.5 });
-    const brownMat = new THREE.MeshStandardMaterial({ color: 0x7a421d, roughness: 0.8 });
-    const blackMat = new THREE.MeshStandardMaterial({ color: 0x101010, roughness: 0.4 });
-    const whiteMat = new THREE.MeshStandardMaterial({ color: 0xffffff, roughness: 0.5 });
+    const skinMat = new THREE.MeshStandardMaterial({ color: 0xf0b27a });
+    const redVestMat = new THREE.MeshStandardMaterial({ color: 0xc91429 });
+    const blueShortsMat = new THREE.MeshStandardMaterial({ color: 0x1769aa });
+    const yellowSashMat = new THREE.MeshStandardMaterial({ color: 0xf4c430 });
+    const strawMat = new THREE.MeshStandardMaterial({ color: 0xe6b84f });
+    const hatRedMat = new THREE.MeshStandardMaterial({ color: 0xb51225 });
+    const brownMat = new THREE.MeshStandardMaterial({ color: 0x7a421d });
+    const blackMat = new THREE.MeshStandardMaterial({ color: 0x101010 });
 
-    // HELPER
     function addPart(mesh) {
         mesh.castShadow = true;
         mesh.receiveShadow = true;
@@ -75,168 +76,134 @@
         return mesh;
     }
 
-    // LEGS
-    const legGeo = new THREE.CapsuleGeometry(0.115, 0.78, 8, 16);
+    // Legs
+    const legGeo = new THREE.CylinderGeometry(0.12, 0.12, 0.8, 16);
     const leftLeg = addPart(new THREE.Mesh(legGeo, skinMat));
-    leftLeg.position.set(-0.21, 0.72, 0);
+    leftLeg.position.set(-0.21, 0.4, 0);
 
     const rightLeg = addPart(new THREE.Mesh(legGeo, skinMat));
-    rightLeg.position.set(0.21, 0.72, 0);
+    rightLeg.position.set(0.21, 0.4, 0);
 
-    // FEET / SANDALS
-    const footGeo = new THREE.BoxGeometry(0.27, 0.11, 0.48);
-    const leftFoot = addPart(new THREE.Mesh(footGeo, brownMat));
-    leftFoot.position.set(-0.21, 0.28, 0.08);
+    // Shorts & Sash
+    const shorts = addPart(new THREE.Mesh(new THREE.CylinderGeometry(0.38, 0.38, 0.5, 16), blueShortsMat));
+    shorts.position.y = 1.05;
 
-    const rightFoot = addPart(new THREE.Mesh(footGeo, brownMat));
-    rightFoot.position.set(0.21, 0.28, 0.08);
+    const sash = addPart(new THREE.Mesh(new THREE.CylinderGeometry(0.41, 0.41, 0.18, 16), yellowSashMat));
+    sash.position.y = 1.35;
 
-    const strapGeo = new THREE.BoxGeometry(0.055, 0.08, 0.28);
-    const leftStrap = addPart(new THREE.Mesh(strapGeo, brownMat));
-    leftStrap.position.set(-0.21, 0.35, 0.06);
-    leftStrap.rotation.x = -0.35;
+    // Torso & Vest
+    const chest = addPart(new THREE.Mesh(new THREE.CylinderGeometry(0.32, 0.32, 0.8, 16), skinMat));
+    chest.position.y = 1.8;
 
-    const rightStrap = addPart(new THREE.Mesh(strapGeo, brownMat));
-    rightStrap.position.set(0.21, 0.35, 0.06);
-    rightStrap.rotation.x = -0.35;
+    const vestLeft = addPart(new THREE.Mesh(new THREE.BoxGeometry(0.2, 0.82, 0.35), redVestMat));
+    vestLeft.position.set(-0.22, 1.8, 0.05);
 
-    // BLUE SHORTS
-    const waistGeo = new THREE.CylinderGeometry(0.40, 0.40, 0.48, 24);
-    const shorts = addPart(new THREE.Mesh(waistGeo, blueShortsMat));
-    shorts.position.y = 1.42;
+    const vestRight = addPart(new THREE.Mesh(new THREE.BoxGeometry(0.2, 0.82, 0.35), redVestMat));
+    vestRight.position.set(0.22, 1.8, 0.05);
 
-    // YELLOW SASH
-    const sashGeo = new THREE.CylinderGeometry(0.43, 0.43, 0.18, 24);
-    const sash = addPart(new THREE.Mesh(sashGeo, yellowSashMat));
-    sash.position.y = 1.68;
-
-    const sashTailGeo = new THREE.BoxGeometry(0.18, 0.52, 0.08);
-    const sashTail = addPart(new THREE.Mesh(sashTailGeo, yellowSashMat));
-    sashTail.position.set(0.30, 1.40, 0.10);
-    sashTail.rotation.z = -0.15;
-
-    // TORSO / CHEST
-    const chestGeo = new THREE.CapsuleGeometry(0.34, 0.65, 8, 20);
-    const chest = addPart(new THREE.Mesh(chestGeo, skinMat));
-    chest.position.y = 2.25;
-
-    // OPEN RED VEST
-    const vestGeo = new THREE.BoxGeometry(0.22, 0.88, 0.16);
-    const leftVest = addPart(new THREE.Mesh(vestGeo, redVestMat));
-    leftVest.position.set(-0.31, 2.31, 0.31);
-    leftVest.rotation.z = -0.05;
-
-    const rightVest = addPart(new THREE.Mesh(vestGeo, redVestMat));
-    rightVest.position.set(0.31, 2.31, 0.31);
-    rightVest.rotation.z = 0.05;
-
-    const vestBottomGeo = new THREE.BoxGeometry(0.66, 0.10, 0.16);
-    const vestBottom = addPart(new THREE.Mesh(vestBottomGeo, redDarkMat));
-    vestBottom.position.set(0, 1.91, 0.31);
-
-    // NECK
-    const neckGeo = new THREE.CylinderGeometry(0.14, 0.16, 0.27, 20);
-    const neck = addPart(new THREE.Mesh(neckGeo, skinMat));
-    neck.position.y = 2.92;
-
-    // SHOULDERS
-    const shoulderGeo = new THREE.SphereGeometry(0.18, 20, 20);
-    const leftShoulder = addPart(new THREE.Mesh(shoulderGeo, skinMat));
-    leftShoulder.position.set(-0.47, 2.63, 0);
-
-    const rightShoulder = addPart(new THREE.Mesh(shoulderGeo, skinMat));
-    rightShoulder.position.set(0.47, 2.63, 0);
-
-    // ARMS
-    const armGeo = new THREE.CapsuleGeometry(0.09, 0.68, 8, 16);
+    // Arms
+    const armGeo = new THREE.CylinderGeometry(0.09, 0.09, 0.7, 16);
     const leftArm = addPart(new THREE.Mesh(armGeo, skinMat));
-    leftArm.position.set(-0.55, 2.20, 0);
-    leftArm.rotation.z = -0.10;
+    leftArm.position.set(-0.5, 1.8, 0);
 
     const rightArm = addPart(new THREE.Mesh(armGeo, skinMat));
-    rightArm.position.set(0.55, 2.20, 0);
-    rightArm.rotation.z = 0.10;
+    rightArm.position.set(0.5, 1.8, 0);
 
-    // HANDS
-    const handGeo = new THREE.SphereGeometry(0.115, 20, 20);
-    const leftHand = addPart(new THREE.Mesh(handGeo, skinMat));
-    leftHand.position.set(-0.59, 1.78, 0);
+    // Head & Hat
+    const head = addPart(new THREE.Mesh(new THREE.SphereGeometry(0.35, 24, 24), skinMat));
+    head.position.set(0, 2.5, 0);
 
-    const rightHand = addPart(new THREE.Mesh(handGeo, skinMat));
-    rightHand.position.set(0.59, 1.78, 0);
+    const hair = addPart(new THREE.Mesh(new THREE.SphereGeometry(0.37, 16, 16), blackMat));
+    hair.position.set(0, 2.6, -0.05);
 
-    // HEAD
-    const headGeo = new THREE.SphereGeometry(0.39, 40, 32);
-    const head = addPart(new THREE.Mesh(headGeo, skinMat));
-    head.position.set(0, 3.34, 0);
+    const hatBrim = addPart(new THREE.Mesh(new THREE.CylinderGeometry(0.7, 0.7, 0.08, 32), strawMat));
+    hatBrim.position.y = 2.8;
 
-    // EARS
-    const earGeo = new THREE.SphereGeometry(0.10, 16, 16);
-    const leftEar = addPart(new THREE.Mesh(earGeo, skinMat));
-    leftEar.position.set(-0.38, 3.34, 0);
+    const hatTop = addPart(new THREE.Mesh(new THREE.CylinderGeometry(0.38, 0.4, 0.35, 24), strawMat));
+    hatTop.position.y = 2.98;
 
-    const rightEar = addPart(new THREE.Mesh(earGeo, skinMat));
-    rightEar.position.set(0.38, 3.34, 0);
+    const hatBand = addPart(new THREE.Mesh(new THREE.CylinderGeometry(0.405, 0.405, 0.1, 24), hatRedMat));
+    hatBand.position.y = 2.88;
 
-    // EYES
-    const eyeWhiteGeo = new THREE.SphereGeometry(0.065, 16, 16);
-    const leftEye = addPart(new THREE.Mesh(eyeWhiteGeo, whiteMat));
-    leftEye.position.set(-0.13, 3.39, 0.36);
-
-    const rightEye = addPart(new THREE.Mesh(eyeWhiteGeo, whiteMat));
-    rightEye.position.set(0.13, 3.39, 0.36);
-
-    const pupilGeo = new THREE.SphereGeometry(0.027, 12, 12);
-    const leftPupil = addPart(new THREE.Mesh(pupilGeo, blackMat));
-    leftPupil.position.set(-0.13, 3.39, 0.415);
-
-    const rightPupil = addPart(new THREE.Mesh(pupilGeo, blackMat));
-    rightPupil.position.set(0.13, 3.39, 0.415);
-
-    // SMILE
-    const mouthGeo = new THREE.TorusGeometry(0.075, 0.018, 8, 16, Math.PI);
-    const mouth = addPart(new THREE.Mesh(mouthGeo, blackMat));
-    mouth.position.set(0, 3.18, 0.37);
-    mouth.rotation.x = Math.PI;
-
-    // HAIR
-    const hairGeo = new THREE.SphereGeometry(0.40, 32, 20);
-    const hair = addPart(new THREE.Mesh(hairGeo, blackMat));
-    hair.position.set(0, 3.57, 0);
-    hair.scale.set(1.02, 0.60, 1.02);
-
-    // STRAW HAT
-    const hatBrimGeo = new THREE.CylinderGeometry(0.68, 0.68, 0.10, 40);
-    const hatBrim = addPart(new THREE.Mesh(hatBrimGeo, strawMat));
-    hatBrim.position.y = 3.70;
-
-    const hatTopGeo = new THREE.CylinderGeometry(0.36, 0.42, 0.38, 32);
-    const hatTop = addPart(new THREE.Mesh(hatTopGeo, strawMat));
-    hatTop.position.y = 3.91;
-
-    const hatBandGeo = new THREE.CylinderGeometry(0.405, 0.405, 0.09, 32);
-    const hatBand = addPart(new THREE.Mesh(hatBandGeo, hatRedMat));
-    hatBand.position.y = 3.82;
-
-    luffyGroup.position.set(0, 0, 0);
     scene.add(luffyGroup);
 
-    // Render Animation Loop
+    // 3. Joystick Logic
+    let moveData = { x: 0, y: 0 };
+    const zone = document.getElementById('joystick-zone');
+    const knob = document.getElementById('joystick-knob');
+
+    zone.addEventListener('touchmove', (e) => {
+        const touch = e.touches[0];
+        const rect = zone.getBoundingClientRect();
+        let x = touch.clientX - rect.left - 60;
+        let y = touch.clientY - rect.top - 60;
+        let dist = Math.hypot(x, y);
+        if (dist > 35) { x *= 35 / dist; y *= 35 / dist; }
+        knob.style.transform = `translate(${x}px, ${y}px)`;
+        moveData.x = x / 35;
+        moveData.y = y / 35;
+    });
+
+    zone.addEventListener('touchend', () => {
+        knob.style.transform = `translate(0px, 0px)`;
+        moveData = { x: 0, y: 0 };
+    });
+
+    // Attack Button
+    let isAttacking = false;
+    document.getElementById('attack-btn').addEventListener('touchstart', (e) => {
+        e.preventDefault();
+        if(!isAttacking) {
+            isAttacking = true;
+            let stretch = 0;
+            const interval = setInterval(() => {
+                stretch += 0.2;
+                rightArm.scale.set(1, 1 + stretch * 2, 1);
+                rightArm.position.z = stretch;
+                if(stretch > 1.2) {
+                    clearInterval(interval);
+                    rightArm.scale.set(1, 1, 1);
+                    rightArm.position.z = 0;
+                    isAttacking = false;
+                }
+            }, 30);
+        }
+    });
+
+    // 4. Render & Movement Loop
+    let walkCycle = 0;
     function animate() {
         requestAnimationFrame(animate);
-        luffyGroup.rotation.y += 0.01; // Character Display Rotate
+
+        if (Math.abs(moveData.x) > 0.1 || Math.abs(moveData.y) > 0.1) {
+            luffyGroup.position.x += moveData.x * 0.08;
+            luffyGroup.position.z += moveData.y * 0.08;
+            luffyGroup.rotation.y = Math.atan2(moveData.x, moveData.y);
+
+            walkCycle += 0.15;
+            leftLeg.rotation.x = Math.sin(walkCycle) * 0.5;
+            rightLeg.rotation.x = -Math.sin(walkCycle) * 0.5;
+            leftArm.rotation.x = -Math.sin(walkCycle) * 0.5;
+            if(!isAttacking) rightArm.rotation.x = Math.sin(walkCycle) * 0.5;
+        } else {
+            leftLeg.rotation.x = 0;
+            rightLeg.rotation.x = 0;
+            leftArm.rotation.x = 0;
+            if(!isAttacking) rightArm.rotation.x = 0;
+        }
+
+        camera.position.set(luffyGroup.position.x, luffyGroup.position.y + 3.5, luffyGroup.position.z + 6);
+        camera.lookAt(luffyGroup.position.x, luffyGroup.position.y + 1.5, luffyGroup.position.z);
+
         renderer.render(scene, camera);
     }
     animate();
 
-    // Screen Resize Adjustment
     window.addEventListener('resize', () => {
         camera.aspect = window.innerWidth / window.innerHeight;
         camera.updateProjectionMatrix();
         renderer.setSize(window.innerWidth, window.innerHeight);
     });
 </script>
-
 </body>
 </html>
-
