@@ -1,0 +1,707 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no,orientation:landscape">
+<title>Pirate City: Open World</title>
+<style>
+*{box-sizing:border-box;-webkit-user-select:none;user-select:none}
+html,body{margin:0;width:100%;height:100%;overflow:hidden;background:#070b12;font-family:Arial,sans-serif;touch-action:none}
+canvas{display:block}
+#rotate{display:none;position:fixed;inset:0;z-index:100;background:#08101b;color:#fff;align-items:center;justify-content:center;text-align:center;font-size:20px;font-weight:700}
+#rotate div{padding:30px}
+@media (orientation:portrait){#rotate{display:flex}}
+#hud{position:fixed;left:14px;top:12px;color:white;z-index:10;width:220px;pointer-events:none;text-shadow:0 2px 3px #000}
+.row{display:flex;justify-content:space-between;font-weight:700;font-size:13px;margin-bottom:4px}
+.bar{height:12px;background:#17202b;border:1px solid #536070;border-radius:9px;overflow:hidden;margin-bottom:6px}
+.fill{height:100%;width:100%;transition:.15s}
+#hp{background:linear-gradient(90deg,#ef233c,#ff8a65)}
+#xp{background:linear-gradient(90deg,#00b4ff,#63f3ff)}
+#wanted{font-size:13px;color:#ffd54f}
+#mission{position:fixed;top:12px;left:50%;transform:translateX(-50%);z-index:10;color:#fff;background:rgba(7,12,20,.7);border:1px solid #526070;border-radius:18px;padding:8px 15px;font-size:12px;pointer-events:none}
+#mini{position:fixed;right:14px;top:12px;width:120px;height:120px;border-radius:50%;background:rgba(5,10,15,.75);border:2px solid #dce8f5;z-index:10}
+#status{position:fixed;left:50%;top:48%;transform:translate(-50%,-50%);z-index:20;color:#fff;font-weight:800;font-size:22px;text-align:center;text-shadow:0 3px 12px #000;opacity:0;transition:.2s;pointer-events:none}
+#leftJoy,#rightJoy{position:fixed;bottom:24px;width:132px;height:132px;border-radius:50%;background:rgba(255,255,255,.10);border:2px solid rgba(255,255,255,.24);z-index:20}
+#leftJoy{left:22px} #rightJoy{right:168px}
+.knob{position:absolute;width:58px;height:58px;left:35px;top:35px;border-radius:50%;background:rgba(220,240,255,.35);border:2px solid rgba(255,255,255,.55);box-shadow:0 4px 20px rgba(0,0,0,.25)}
+#actions{position:fixed;right:15px;bottom:17px;z-index:21;display:grid;grid-template-columns:72px 72px;gap:9px}
+button{width:72px;height:54px;border:1px solid rgba(255,255,255,.3);border-radius:16px;background:rgba(5,12,20,.72);color:#fff;font-size:10px;font-weight:800}
+button:active{transform:scale(.92);background:rgba(80,150,255,.55)}
+#attack{background:rgba(180,25,35,.72);height:62px}
+#blast{background:rgba(0,120,210,.72);height:62px}
+#enter{background:rgba(30,130,75,.72)}
+#car{background:rgba(120,75,15,.72)}
+#cross{position:fixed;left:50%;top:50%;width:14px;height:14px;transform:translate(-50%,-50%);border:1px solid rgba(255,255,255,.55);border-radius:50%;z-index:5;pointer-events:none}
+#hint{position:fixed;bottom:4px;left:50%;transform:translateX(-50%);color:rgba(255,255,255,.55);font-size:10px;z-index:10}
+@media(max-height:420px){#leftJoy,#rightJoy{bottom:12px}#actions{bottom:8px}.bar{height:9px}#hud{top:7px;left:8px}.mini{}}
+</style>
+</head>
+<body>
+<div id="rotate"><div>📱<br><br>Rotate your phone to landscape mode</div></div>
+<div id="hud">
+  <div class="row"><span id="level">LEVEL 1</span><span id="power">POWER 12</span></div>
+  <div class="bar"><div id="hp" class="fill"></div></div>
+  <div class="row"><span>XP</span><span id="xpText">0 / 100</span></div>
+  <div class="bar"><div id="xp" class="fill"></div></div>
+  <div id="wanted">WANTED ★☆☆☆☆</div>
+</div>
+<div id="mission">MISSION: Stop the thieves • 0 / 8</div>
+<canvas id="mini" width="120" height="120"></canvas>
+<div id="cross"></div>
+<div id="status"></div>
+<div id="leftJoy"><div id="leftKnob" class="knob"></div></div>
+<div id="rightJoy"><div id="rightKnob" class="knob"></div></div>
+<div id="actions">
+  <button id="attack">👊 PUNCH</button>
+  <button id="blast">⚡ BLAST</button>
+  <button id="car">🚗 SPAWN CAR</button>
+  <button id="enter">🚪 ENTER</button>
+  <button id="jump">🦘 JUMP</button>
+  <button id="run">🏃 SPRINT</button>
+</div>
+<div id="hint">Left joystick = move • Right joystick = camera • WASD/Arrows + mouse/keyboard supported</div>
+
+<script src="https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.min.js"></script>
+<script>
+const scene=new THREE.Scene();
+scene.background=new THREE.Color(0x7da7c2);
+scene.fog=new THREE.Fog(0x7da7c2,65,360);
+
+const camera=new THREE.PerspectiveCamera(62,innerWidth/innerHeight,.1,700);
+const renderer=new THREE.WebGLRenderer({antialias:true,powerPreference:"high-performance"});
+renderer.setSize(innerWidth,innerHeight);
+renderer.setPixelRatio(Math.min(devicePixelRatio,1.5));
+renderer.shadowMap.enabled=true;
+renderer.shadowMap.type=THREE.PCFSoftShadowMap;
+document.body.appendChild(renderer.domElement);
+
+const hemi=new THREE.HemisphereLight(0xdceeff,0x263a28,2.0); scene.add(hemi);
+const sun=new THREE.DirectionalLight(0xfff1cf,3.2);
+sun.position.set(-100,150,80); sun.castShadow=true;
+sun.shadow.mapSize.set(1024,1024);
+sun.shadow.camera.left=-180;sun.shadow.camera.right=180;
+sun.shadow.camera.top=180;sun.shadow.camera.bottom=-180;
+scene.add(sun);
+
+const M=c=>new THREE.MeshStandardMaterial({color:c,roughness:.78,metalness:.04});
+const world=250;
+
+const ground=new THREE.Mesh(new THREE.PlaneGeometry(560,560),M(0x4d8a49));
+ground.rotation.x=-Math.PI/2;ground.receiveShadow=true;scene.add(ground);
+
+function box(x,y,z,w,h,d,c,group=scene){
+ const m=new THREE.Mesh(new THREE.BoxGeometry(w,h,d),M(c));
+ m.position.set(x,y,z);m.castShadow=true;m.receiveShadow=true;group.add(m);return m;
+}
+function road(x,z,w,d){
+ box(x,.025,z,w,.05,d,0x262b31);
+ if(w>d) for(let i=-w/2+8;i<w/2;i+=12) box(x+i,.07,z,5,.025,.22,0xe7c94b);
+ else for(let i=-d/2+8;i<d/2;i+=12) box(x,.07,z+i,.22,.025,5,0xe7c94b);
+}
+road(0,0,520,18);road(0,0,18,520);road(0,85,520,14);road(0,-85,520,14);road(85,0,14,520);road(-85,0,14,520);
+
+const buildingColors=[0xb8a07c,0x8e9ba7,0xb87560,0x9181a7,0x758f87,0xc1b78f];
+const staticColliders=[];
+const treeColliders=[];
+function building(x,z,w,h,d,c){
+ const g=new THREE.Group();scene.add(g);g.position.set(x,0,z);
+ box(0,h/2,0,w,h,d,c,g);box(0,h+.35,0,w+.7,.7,d+.7,0x30343a,g);
+ staticColliders.push({x,z,w:w+.8,d:d+.8,type:"building"});
+ for(let yy=4;yy<h-1;yy+=5){
+   for(let xx=-w/2+2;xx<w/2-1;xx+=4){
+    const win=box(xx,yy,d/2+.04,1.45,.8,.05,0x8ccfe6,g);
+    win.castShadow=false;
+   }
+ }
+}
+for(let x=-220;x<=220;x+=44)for(let z=-220;z<=220;z+=44){
+ if(Math.abs(x)<27||Math.abs(z)<27||Math.abs(x-85)<20||Math.abs(z-85)<20||Math.abs(x+85)<20||Math.abs(z+85)<20)continue;
+ building(x+(Math.random()*8-4),z+(Math.random()*8-4),25+Math.random()*10,10+Math.random()*32,25+Math.random()*10,buildingColors[(Math.random()*buildingColors.length)|0]);
+}
+box(0,4,-270,550,8,8,0x42474d);box(0,4,270,550,8,8,0x42474d);box(-270,4,0,8,8,550,0x42474d);box(270,4,0,8,8,550,0x42474d);
+
+function tree(x,z){
+ const g=new THREE.Group();g.position.set(x,0,z);scene.add(g);
+ const trunk=new THREE.Mesh(new THREE.CylinderGeometry(.22,.32,2.2,7),M(0x654128));trunk.position.y=1.1;trunk.castShadow=true;g.add(trunk);
+ const crown=new THREE.Mesh(new THREE.DodecahedronGeometry(1.5,1),M(0x246b35));crown.position.y=3; crown.castShadow=true;g.add(crown);
+ treeColliders.push({x,z,r:1.35});
+}
+function validTreeSpot(x,z){
+ // Never place vegetation on the main roads or close to intersections.
+ const onRoadX = Math.abs(x) < 11 || Math.abs(Math.abs(x)-85) < 9 || Math.abs(Math.abs(x)+85) < 9;
+ const onRoadZ = Math.abs(z) < 11 || Math.abs(Math.abs(z)-85) < 9 || Math.abs(Math.abs(z)+85) < 9;
+ if(onRoadX || onRoadZ) return false;
+ if(Math.abs(x)<34 && Math.abs(z)<34) return false;
+ for(const c of staticColliders){
+   if(Math.abs(x-c.x)<c.w/2+2.5 && Math.abs(z-c.z)<c.d/2+2.5) return false;
+ }
+ for(const t of treeColliders){if(Math.hypot(x-t.x,z-t.z)<7)return false}
+ return true;
+}
+for(let i=0;i<75;){const x=(Math.random()-.5)*470,z=(Math.random()-.5)*470;if(validTreeSpot(x,z)){tree(x,z);i++}}
+
+function makeHero(){
+ const g=new THREE.Group();
+ const skin=M(0xffc79f), red=M(0xc62828), blue=M(0x174b9a), denim=M(0x16488f);
+ const dark=M(0x151515), straw=M(0xd8ad48), straw2=M(0xe8c35c), sandal=M(0x8b5a35);
+
+ // More human proportions: longer legs, narrower waist, broad shoulders.
+ const torso=new THREE.Mesh(new THREE.CapsuleGeometry(.48,.92,6,12),skin);
+ torso.position.y=2.05; torso.scale.set(1.05,.92,.78); torso.castShadow=true; g.add(torso);
+
+ // Open red sleeveless vest: two longer front panels plus back shoulder cloth.
+ const vestMat=new THREE.MeshStandardMaterial({color:0xc62828,roughness:.72});
+ const vl=new THREE.Mesh(new THREE.BoxGeometry(.34,1.05,.16),vestMat); vl.position.set(-.30,2.18,.43); vl.rotation.z=-.04; g.add(vl);
+ const vr=new THREE.Mesh(new THREE.BoxGeometry(.34,1.05,.16),vestMat); vr.position.set(.30,2.18,.43); vr.rotation.z=.04; g.add(vr);
+ const backVest=new THREE.Mesh(new THREE.BoxGeometry(.82,.95,.12),vestMat); backVest.position.set(0,2.20,-.39); g.add(backVest);
+
+ // Neck and head.
+ const neck=new THREE.Mesh(new THREE.CylinderGeometry(.18,.21,.28,12),skin);
+ neck.position.y=2.67; neck.castShadow=true; g.add(neck);
+ const head=new THREE.Mesh(new THREE.SphereGeometry(.53,20,16),skin);
+ head.position.y=3.18; head.scale.set(.94,1.08,.92); head.castShadow=true; g.add(head);
+
+ // Ears.
+ [-1,1].forEach(side=>{
+   const ear=new THREE.Mesh(new THREE.SphereGeometry(.11,10,8),skin);
+   ear.position.set(side*.51,3.17,0); g.add(ear);
+ });
+
+ // Messy black hair spikes.
+ for(let i=0;i<9;i++){
+   const a=(i/9)*Math.PI*2;
+   const hair=new THREE.Mesh(new THREE.ConeGeometry(.13,.48,7),dark);
+   hair.position.set(Math.cos(a)*.43,3.55+Math.sin(a)*.07,Math.sin(a)*.43);
+   hair.rotation.set(Math.sin(a)*.75,0,-Math.cos(a)*.75);
+   g.add(hair);
+ }
+
+ // Straw hat: crown + wide brim + red band.
+ const hat=new THREE.Mesh(new THREE.CylinderGeometry(.42,.53,.34,20),straw2);
+ hat.position.y=3.75; hat.castShadow=true; g.add(hat);
+ const brim=new THREE.Mesh(new THREE.CylinderGeometry(.82,.94,.10,24),straw);
+ brim.position.y=3.58; brim.castShadow=true; g.add(brim);
+ const band=new THREE.Mesh(new THREE.CylinderGeometry(.54,.54,.10,20),red);
+ band.position.y=3.63; g.add(band);
+
+ // Eyes, brows and small scar under the left eye.
+ [-.19,.19].forEach(x=>{
+   const eye=new THREE.Mesh(new THREE.SphereGeometry(.055,10,8),dark);
+   eye.position.set(x,3.21,.485); g.add(eye);
+   const brow=new THREE.Mesh(new THREE.BoxGeometry(.15,.035,.035),dark);
+   brow.position.set(x,3.34,.47); brow.rotation.z=x<0?.10:-.10; g.add(brow);
+ });
+ for(let i=0;i<3;i++){
+   const scar=new THREE.Mesh(new THREE.BoxGeometry(.035,.20,.025),red);
+   scar.position.set(-.24+i*.045,3.02,.49); scar.rotation.z=-.25; g.add(scar);
+ }
+
+ // Yellow waist sash with a hanging knot/tail.
+ const sashMat=new THREE.MeshStandardMaterial({color:0xe4b62f,roughness:.8});
+ const sash=new THREE.Mesh(new THREE.CylinderGeometry(.52,.54,.22,18),sashMat); sash.position.y=1.58; g.add(sash);
+ const sashTail=new THREE.Mesh(new THREE.BoxGeometry(.18,.58,.08),sashMat); sashTail.position.set(.40,1.28,.43); sashTail.rotation.z=-.18; g.add(sashTail);
+
+ // Blue knee-length shorts with a cleaner silhouette.
+ const shortsL=box(-.23,1.29,0,.46,.50,.64,0x174b9a,g);
+ const shortsR=box(.23,1.29,0,.46,.50,.64,0x174b9a,g);
+
+ const arms=[],legs=[];
+ [-.63,.63].forEach(side=>{
+   const upper=new THREE.Mesh(new THREE.CapsuleGeometry(.145,.55,5,8),skin);
+   upper.position.set(side*.67,2.08,0); upper.rotation.z=side>0?-.10:.10;
+   upper.castShadow=true; g.add(upper); arms.push(upper);
+   const fore=new THREE.Mesh(new THREE.CapsuleGeometry(.13,.46,5,8),skin);
+   fore.position.set(side*.76,1.67,0); fore.rotation.z=side>0?-.05:.05;
+   fore.castShadow=true; g.add(fore); arms.push(fore);
+
+   const leg=new THREE.Mesh(new THREE.CapsuleGeometry(.18,.78,5,8),skin);
+   leg.position.set(side*.22,.75,0); leg.castShadow=true; g.add(leg); legs.push(leg);
+
+   const foot=new THREE.Mesh(new THREE.BoxGeometry(.30,.12,.58),sandal);
+   foot.position.set(side*.22,.20,.10); foot.castShadow=true; g.add(foot);
+ });
+
+ // Small vest shoulder seams.
+ [-.44,.44].forEach(x=>{
+   const seam=new THREE.Mesh(new THREE.TorusGeometry(.25,.025,6,12,Math.PI),red);
+   seam.rotation.z=Math.PI/2; seam.position.set(x,2.54,0); g.add(seam);
+ });
+
+ g.userData.anim={arms:[arms[0],arms[2],arms[1],arms[3]],legs,body:torso,phase:Math.random()*6};
+ g.userData.type="player";
+ g.userData.baseY={body:2.05,torso:2.05};
+ return g;
+}
+const player={
+ g:makeHero(),hp:100,maxHp:100,level:1,xp:0,next:100,power:12,
+ yaw:0,cameraYaw:0,pitch:.12,inCar:false,car:null,sprint:false,
+ jump:0,wanted:0,kills:0,moveAmount:0,action:0
+};
+scene.add(player.g);player.g.position.set(0,0,20);
+
+function bar(){
+ const g=new THREE.Group();
+ const b=new THREE.Mesh(new THREE.PlaneGeometry(1.8,.18),M(0x15191d));g.add(b);
+ const f=new THREE.Mesh(new THREE.PlaneGeometry(1.65,.12),M(0x35df62));f.position.z=.01;g.add(f);g.fill=f;return g;
+}
+function makeHumanNPC(type="thief"){
+ const g=new THREE.Group(), arms=[], legs=[];
+ const skin=M(type==="police"?0xd49b78:0xb97954);
+ const shirt=type==="police"?M(0x203c73):M(0x5b286e);
+ const pants=type==="police"?M(0x17284e):M(0x3e2350);
+ const hair=M(0x181818);
+
+ const body=new THREE.Mesh(new THREE.CapsuleGeometry(.43,.88,6,10),skin);
+ body.position.y=1.65; body.scale.set(1.0,.95,.78); body.castShadow=true; g.add(body);
+ box(-.22,1.85,.34,.38,.88,.10,shirt,g); box(.22,1.85,.34,.38,.88,.10,shirt,g);
+ const neck=new THREE.Mesh(new THREE.CylinderGeometry(.15,.18,.22,10),skin); neck.position.y=2.27; g.add(neck);
+ const head=new THREE.Mesh(new THREE.SphereGeometry(.43,16,12),skin);
+ head.position.y=2.67; head.scale.set(.95,1.08,.9); head.castShadow=true; g.add(head);
+
+ for(let i=0;i<7;i++){
+   const a=i/7*Math.PI*2, h=new THREE.Mesh(new THREE.ConeGeometry(.10,.30,6),hair);
+   h.position.set(Math.cos(a)*.34,3.01,Math.sin(a)*.34); h.rotation.set(Math.sin(a)*.7,0,-Math.cos(a)*.7); g.add(h);
+ }
+ [-.15,.15].forEach(x=>{
+   const e=new THREE.Mesh(new THREE.SphereGeometry(.045,8,6),M(0x171717));
+   e.position.set(x,2.70,.40); g.add(e);
+ });
+ [-.58,.58].forEach(side=>{
+   const a=new THREE.Mesh(new THREE.CapsuleGeometry(.12,.58,5,7),skin);
+   a.position.set(side*.56,1.70,0); a.rotation.z=side>0?-.12:.12; a.castShadow=true; g.add(a); arms.push(a);
+   const f=new THREE.Mesh(new THREE.CapsuleGeometry(.11,.42,5,7),skin);
+   f.position.set(side*.65,1.30,0); g.add(f); arms.push(f);
+   const l=new THREE.Mesh(new THREE.CapsuleGeometry(.16,.65,5,7),pants);
+   l.position.set(side*.20,.62,0); l.castShadow=true; g.add(l); legs.push(l);
+   const foot=new THREE.Mesh(new THREE.BoxGeometry(.27,.11,.48),M(0x222222));
+   foot.position.set(side*.20,.20,.08); g.add(foot);
+ });
+ if(type==="police") box(0,3.05,0,.78,.20,.55,0x12203b,g);
+ const h=bar(); h.position.y=3.35; g.add(h);
+ g.userData={type,hp:type==="police"?60:45,maxHp:type==="police"?60:45,
+   speed:type==="police"?2.2:1.8+Math.random(),bar:h,roam:Math.random()*6,
+   anim:{arms:[arms[0],arms[2],arms[1],arms[3]],legs,body,phase:Math.random()*6}};
+ return g;
+}
+function thief(){ return makeHumanNPC("thief"); }
+const enemies=[];
+
+function spawnEnemy(e){
+ let tries=0;
+ do{e.position.set((Math.random()-.5)*450,0,(Math.random()-.5)*450);tries++}while(tries<80&&(!safePoint(e.position.x,e.position.z,1.5)));
+ e.visible=true;e.userData.hp=e.userData.maxHp;e.userData.bar.fill.scale.x=1;
+}
+function safePoint(x,z,r=1.2){
+ if(Math.abs(x)>247||Math.abs(z)>247)return false;
+
+ // Buildings are solid AABBs; actors/cars cannot pass through them.
+ for(const c of staticColliders){
+   if(Math.abs(x-c.x)<c.w/2+r && Math.abs(z-c.z)<c.d/2+r) return false;
+ }
+
+ // Trees are solid cylinders.
+ for(const t of treeColliders){
+   if(Math.hypot(x-t.x,z-t.z)<t.r+r) return false;
+ }
+
+ return true;
+}
+function police(){ return makeHumanNPC("police"); }
+const cops=[];for(let i=0;i<7;i++){let p=police();spawnEnemy(p);scene.add(p);cops.push(p)}
+
+const parkedCars=[];
+function carMesh(type='sedan',color=0xb72b32){
+ const g=new THREE.Group();
+ const specs={sedan:[2.3,.65,4,.65],suv:[2.5,.78,4.3,.78],van:[2.6,.95,5,.9],pickup:[2.5,.72,4.6,.72]};
+ const sp=specs[type]||specs.sedan;
+ box(0,sp[1],0,sp[0],sp[1],sp[2],color,g);
+ box(0,sp[1]+.5,-.15,sp[0]*.72,.52,sp[2]*.43,0x26313b,g);
+ // bumpers/lights
+ box(0,.55,-sp[2]/2-.04,sp[0]*.82,.18,.12,0x202020,g);
+ [-1,1].forEach(x=>{
+   box(x*sp[0]*.34,.72,-sp[2]/2-.11,.28,.18,.08,0xf4f0c8,g);
+   box(x*sp[0]*.34,.72, sp[2]/2+.11,.28,.18,.08,0xc73535,g);
+ });
+ [-1,1].forEach(x=>[-sp[2]*.31,sp[2]*.31].forEach(z=>{
+   let w=new THREE.Mesh(new THREE.CylinderGeometry(.38,.38,.28,12),M(0x101010));
+   w.rotation.z=Math.PI/2;w.position.set(x*sp[0]*.47,.38,z);g.add(w);
+ }));
+ g.userData.speed=0;g.userData.vehicleType=type;g.userData.color=color;return g;
+}
+function addParkedCars(){
+ const colors=[0xb72b32,0x2468b1,0xeeeeee,0x22252b,0xd7a52b,0x23834b,0x7a4fb3,0xd86b2b];
+ const types=['sedan','suv','van','pickup'];
+ const spots=[[-42,-18],[-28,18],[18,-42],[42,28],[-70,12],[70,-28],[28,70],[-18,-70]];
+ spots.forEach((p,i)=>{
+   const c=carMesh(types[i%types.length],colors[i%colors.length]);
+   c.position.set(p[0],0,p[1]);c.rotation.y=(i%2?Math.PI/2:0);scene.add(c);parkedCars.push(c);
+ });
+}
+function spawnCar(){
+ if(player.car){scene.remove(player.car);player.car=null}
+ const types=['sedan','suv','van','pickup'];
+ const colors=[0xb72b32,0x2468b1,0xeeeeee,0x22252b,0xd7a52b,0x23834b];
+ const c=carMesh(types[Math.floor(Math.random()*types.length)],colors[Math.floor(Math.random()*colors.length)]);
+ let sp=player.g.position.clone();
+ const front=new THREE.Vector3(Math.sin(player.yaw),0,Math.cos(player.yaw));
+ sp.add(front.multiplyScalar(-5));
+ if(!safePoint(sp.x,sp.z,1.8)) sp.copy(player.g.position);
+ c.position.copy(sp);c.rotation.y=player.yaw;scene.add(c);player.car=c;msg('CAR READY • '+c.userData.vehicleType.toUpperCase());
+}
+function toggleCar(){
+ if(player.inCar){
+   const exit=player.car.position.clone();
+   exit.x+=3;
+   if(!safePoint(exit.x,exit.z,.82)) exit.x-=6;
+   if(safePoint(exit.x,exit.z,.82)){
+     player.inCar=false;player.g.visible=true;player.g.position.copy(exit);msg('EXITED VEHICLE');
+   }else msg('NO ROOM TO EXIT');
+   return;
+ }
+ let candidate=player.car && player.g.position.distanceTo(player.car.position)<7 ? player.car : null;
+ if(!candidate){
+   let best=7;
+   for(const c of parkedCars){const d=player.g.position.distanceTo(c.position);if(d<best){best=d;candidate=c;}}
+ }
+ if(candidate){
+   if(!player.car) player.car=candidate;
+   player.inCar=true;player.g.visible=false;msg('ENTERED '+(candidate.userData.vehicleType||'CAR').toUpperCase());
+ }else if(player.car) msg('MOVE CLOSER TO THE CAR');
+ else msg('NO CAR NEARBY');
+}
+addParkedCars();
+
+function explode(pos,color=0x00d9ff,size=.7){
+ const m=new THREE.Mesh(new THREE.SphereGeometry(.18,8,8),new THREE.MeshBasicMaterial({color,transparent:true,opacity:.8}));
+ m.position.copy(pos);scene.add(m);let t=0;function a(){t+=.06;m.scale.setScalar(1+t*5);m.material.opacity=.8-t;if(t<.8)requestAnimationFrame(a);else scene.remove(m)}a();
+}
+function damage(e,n){
+ e.userData.hp-=n;
+ e.userData.bar.fill.scale.x=Math.max(0,e.userData.hp/e.userData.maxHp);
+ if(e.userData.hp<=0){
+  e.visible=false;player.kills++;gain(n>=20?40:25);player.wanted=Math.min(5,player.wanted+.15);
+  msg("+XP • ENEMY DOWN");
+  setTimeout(()=>spawnEnemy(e),1800);
+ }
+}
+function target(range){
+ let best=null,bd=range;
+ for(const e of enemies)if(e.visible&&e.userData.type==="thief"){let d=player.g.position.distanceTo(e.position);if(d<bd){bd=d;best=e}}
+ return best;
+}
+let cooldown=0;
+function punch(){
+ if(cooldown>0)return;cooldown=.45;player.action=.24;
+ const e=target(5.5);explode(player.g.position.clone().add(new THREE.Vector3(0,1.5,0)),0xffdf35,.5);
+ if(e){damage(e,player.power);e.position.add(new THREE.Vector3(Math.sin(player.yaw),0,Math.cos(player.yaw)).multiplyScalar(1.2))}
+}
+function blast(){
+ if(cooldown>0)return;cooldown=.8;player.action=.34;
+ const dir=new THREE.Vector3(Math.sin(player.yaw),0,Math.cos(player.yaw));
+ const o=new THREE.Mesh(new THREE.SphereGeometry(.3,10,8),new THREE.MeshBasicMaterial({color:0x00e5ff}));
+ o.position.copy(player.g.position);o.position.y+=1.7;scene.add(o);
+ let t=0;function fly(){t+=.035;o.position.add(dir.clone().multiplyScalar(1.7));explode(o.position,0x00d9ff,.1);
+  for(const e of enemies)if(e.visible&&e.userData.type==="thief"&&o.position.distanceTo(e.position)<1.8){damage(e,player.power*1.8);scene.remove(o);return}
+  if(t<1.8)requestAnimationFrame(fly);else scene.remove(o)}fly();
+}
+function gain(n){
+ player.xp+=n;
+ while(player.xp>=player.next){player.xp-=player.next;player.level++;player.next=Math.floor(player.next*1.35);player.power+=5;player.maxHp+=18;player.hp=player.maxHp;msg("⭐ LEVEL UP • LEVEL "+player.level)}
+}
+function msg(s){const el=document.getElementById("status");el.innerHTML=s;el.style.opacity=1;clearTimeout(msg.t);msg.t=setTimeout(()=>el.style.opacity=0,1100)}
+
+const keys={};
+addEventListener("keydown",e=>{keys[e.key.toLowerCase()]=true;if(e.code==="Space")punch();if(e.key.toLowerCase()==="f")blast();if(e.key.toLowerCase()==="e")toggleCar();if(e.key.toLowerCase()==="c")spawnCar()});
+addEventListener("keyup",e=>keys[e.key.toLowerCase()]=false);
+
+const L={x:0,y:0,on:false},R={x:0,y:0,on:false};
+function setupJoy(id,knob,state){
+ const el=document.getElementById(id);
+ function move(e){
+   const r=el.getBoundingClientRect();
+   let x=e.clientX-(r.left+r.width/2),y=e.clientY-(r.top+r.height/2);
+   const max=45,l=Math.hypot(x,y);
+   if(l>max){x=x/l*max;y=y/l*max}
+   state.x=x/max;state.y=y/max;
+   knob.style.left=(35+x)+"px";knob.style.top=(35+y)+"px";
+ }
+ function end(){
+   state.x=state.y=0;state.on=false;
+   knob.style.left="35px";knob.style.top="35px";
+ }
+ el.addEventListener("pointerdown",e=>{e.preventDefault();state.on=true;el.setPointerCapture(e.pointerId);move(e)});
+ el.addEventListener("pointermove",e=>{e.preventDefault();if(state.on)move(e)});
+ el.addEventListener("pointerup",e=>{e.preventDefault();end()});
+ el.addEventListener("pointercancel",end);
+}
+setupJoy("leftJoy",document.getElementById("leftKnob"),L);
+setupJoy("rightJoy",document.getElementById("rightKnob"),R);
+
+attack.onpointerdown=punch;blast.onpointerdown=blast;car.onpointerdown=spawnCar;enter.onpointerdown=toggleCar;
+jump.onpointerdown=()=>{if(player.jump<=0)player.jump=.55};
+run.onpointerdown=()=>player.sprint=true;run.onpointerup=()=>player.sprint=false;run.onpointercancel=()=>player.sprint=false;
+
+function resolveMove(o,dx,dz,r=.8){
+ let ox=o.position.x,oz=o.position.z;
+ let nx=ox+dx,nz=oz+dz;
+ if(safePoint(nx,oz,r))o.position.x=nx;
+ if(safePoint(o.position.x,nz,r))o.position.z=nz;
+}
+function movePlayer(dt){
+ if(player.inCar){drive(dt);return}
+
+ // Free-Fire style:
+ // LEFT stick = movement relative to the camera.
+ // RIGHT stick = camera orbit. Up on the left stick is always forward.
+ let sx=(keys.d||keys.arrowright?1:0)-(keys.a||keys.arrowleft?1:0)+L.x;
+ let forward=(keys.w||keys.arrowup?1:0)-(keys.s||keys.arrowdown?1:0)-L.y;
+
+ let len=Math.hypot(sx,forward);
+ if(len>1){sx/=len;forward/=len}
+
+ // Right stick rotates the camera independently.
+ if(Math.abs(R.x)>.02 || Math.abs(R.y)>.02){
+   player.cameraYaw -= R.x*2.75*dt;
+   player.pitch = THREE.MathUtils.clamp(player.pitch - R.y*1.35*dt,-.32,.48);
+ }
+
+ const moving=len>.06;
+ player.moveAmount = THREE.MathUtils.lerp(player.moveAmount,moving?len:0,Math.min(1,dt*10));
+
+ if(moving){
+   const speed=player.sprint?10.5:6.5;
+   const f=new THREE.Vector3(Math.sin(player.cameraYaw),0,Math.cos(player.cameraYaw));
+   const r=new THREE.Vector3(Math.cos(player.cameraYaw),0,-Math.sin(player.cameraYaw));
+   const dx=(f.x*forward+r.x*sx)*speed*dt;
+   const dz=(f.z*forward+r.z*sx)*speed*dt;
+
+   resolveMove(player.g,dx,dz,.82);
+
+   // Character faces the direction of actual movement.
+   const actual=Math.hypot(dx,dz);
+   if(actual>.0001){
+     const targetYaw=Math.atan2(dx,dz);
+     let diff=Math.atan2(Math.sin(targetYaw-player.yaw),Math.cos(targetYaw-player.yaw));
+     player.yaw += diff*Math.min(1,dt*12);
+     player.g.rotation.y=player.yaw;
+   }
+ }
+
+ if(player.jump>0){
+   player.jump-=dt;
+   player.g.position.y=Math.sin((.55-player.jump)/.55*Math.PI)*1.2;
+ }else player.g.position.y=0;
+}
+
+function drive(dt){
+ const c=player.car;if(!c)return;
+
+ // Vehicle: left stick controls throttle/strafe, right stick steers/camera.
+ const throttle=(keys.w||keys.arrowup?1:0)-(keys.s||keys.arrowdown?1:0)-L.y;
+ c.userData.speed += throttle*24*dt;
+ c.userData.speed *= Math.pow(.965,dt*60);
+ c.userData.speed=THREE.MathUtils.clamp(c.userData.speed,-10,30);
+
+ const steer=(keys.d||keys.arrowright?1:0)-(keys.a||keys.arrowleft?1:0)+R.x;
+ c.rotation.y -= steer*1.8*dt*Math.sign(c.userData.speed||1);
+
+ const dx=Math.sin(c.rotation.y)*c.userData.speed*dt;
+ const dz=Math.cos(c.rotation.y)*c.userData.speed*dt;
+ resolveMove(c,dx,dz,1.7);
+
+ player.g.position.copy(c.position);
+ player.yaw=c.rotation.y;
+ player.cameraYaw=c.rotation.y;
+ player.moveAmount=Math.min(1,Math.abs(c.userData.speed)/12);
+}
+
+function moveNPC(e,dx,dz,r){
+ const oldX=e.position.x,oldZ=e.position.z;
+ let moved=false;
+ if(safePoint(oldX+dx,oldZ,r)){e.position.x=oldX+dx;moved=true}
+ if(safePoint(e.position.x,oldZ+dz,r)){e.position.z=oldZ+dz;moved=true}
+ return moved;
+}
+function ai(dt){
+ for(const e of enemies)if(e.visible&&e.userData.type==="thief"){
+   const d=e.position.distanceTo(player.g.position);
+   let moving=false;
+
+   if(d<30){
+     const v=player.g.position.clone().sub(e.position);v.y=0;
+     if(v.length()>2.3){
+       v.normalize();
+       moveNPC(e,v.x*e.userData.speed*dt,v.z*e.userData.speed*dt,.72);
+       e.rotation.y=Math.atan2(v.x,v.z);
+       moving=true;
+     }else{
+       player.hp-=5*dt;
+     }
+   }else{
+     e.userData.roam-=dt;
+     if(e.userData.roam<0){
+       e.rotation.y+=Math.random()*3-1.5;
+       e.userData.roam=2+Math.random()*4;
+     }
+     const moved=moveNPC(e,
+       Math.sin(e.rotation.y)*e.userData.speed*.25*dt,
+       Math.cos(e.rotation.y)*e.userData.speed*.25*dt,.72);
+     moving=moved;
+   }
+   e.userData.moveAmount=THREE.MathUtils.lerp(e.userData.moveAmount||0,moving?1:0,dt*8);
+ }
+
+ for(const p of cops)if(p.visible){
+   const d=p.position.distanceTo(player.g.position);
+   let moving=false;
+   if(player.wanted>.7&&d<80){
+     const v=player.g.position.clone().sub(p.position);v.y=0;
+     if(v.length()>5){
+       v.normalize();
+       moving=moveNPC(p,v.x*p.userData.speed*dt,v.z*p.userData.speed*dt,.72);
+       p.rotation.y=Math.atan2(v.x,v.z);
+     }
+   }
+   p.userData.moveAmount=THREE.MathUtils.lerp(p.userData.moveAmount||0,moving?1:0,dt*8);
+ }
+
+ if(player.hp<=0){
+   player.hp=player.maxHp;player.g.position.set(0,0,20);
+   player.wanted=0;msg("YOU WERE DEFEATED");
+ }
+ player.wanted=Math.max(0,player.wanted-dt*.012);
+}
+function animateCharacter(g,moving,dt){
+ const a=g.userData.anim;
+ if(!a)return;
+
+ const speed = moving ? 9 : 2.2;
+ a.phase += dt*speed;
+
+ const amount = typeof g.userData.moveAmount==="number" ? g.userData.moveAmount : (moving?1:0);
+ const swing = Math.sin(a.phase)*0.72*amount;
+ const bounce = Math.abs(Math.sin(a.phase))*0.055*amount;
+
+ // Walk/run cycle: opposite arms and legs swing naturally.
+ a.arms[0].rotation.x = swing;
+ a.arms[1].rotation.x = -swing;
+ a.legs[0].rotation.x = -swing;
+ a.legs[1].rotation.x = swing;
+
+ const base = g.userData.type==="thief"||g.userData.type==="police" ? 1.15 : 1.65;
+ a.body.position.y = base + bounce;
+
+ if(!amount){
+   a.arms[0].rotation.z = -.15 + Math.sin(a.phase*.7)*.025;
+   a.arms[1].rotation.z =  .15 - Math.sin(a.phase*.7)*.025;
+ }else{
+   a.arms[0].rotation.z = -.15;
+   a.arms[1].rotation.z =  .15;
+ }
+
+ // Short attack pose for the player.
+ if(g===player.g && player.action>0){
+   const k=Math.sin((.24-player.action)/.24*Math.PI);
+   a.arms[1].rotation.x = -1.15*k;
+   a.arms[1].rotation.z = -.55;
+   a.body.rotation.y = .10*k;
+ }
+}
+
+function cameraBlocked(pos){
+  for(const c of staticColliders){
+    if(Math.abs(pos.x-c.x)<c.w/2+.25 && Math.abs(pos.z-c.z)<c.d/2+.25 && pos.y<c.h+1) return true;
+  }
+  for(const t of treeColliders){
+    if(Math.hypot(pos.x-t.x,pos.z-t.z)<t.r+.25 && pos.y<5) return true;
+  }
+  return false;
+}
+function cam(){
+ const target=player.inCar?player.car:player.g;
+ const dist=player.inCar?11:8.7;
+ const height=player.inCar?5.8:4.9;
+ const orbit=new THREE.Vector3(
+   Math.sin(player.cameraYaw)*-dist,
+   height+player.pitch*3,
+   Math.cos(player.cameraYaw)*-dist
+ );
+ const from=target.position.clone().add(new THREE.Vector3(0,1.6,0));
+ const desired=target.position.clone().add(orbit);
+
+ // Pull the camera forward if a building/tree would occupy the camera position.
+ let final=desired.clone();
+ const steps=12;
+ for(let i=steps;i>=1;i--){
+   const t=i/steps;
+   const test=from.clone().lerp(desired,t);
+   if(!cameraBlocked(test)){final=test;break;}
+ }
+ camera.position.lerp(final,.14);
+ camera.lookAt(
+   target.position.x,
+   target.position.y+1.45+player.pitch*.6,
+   target.position.z
+ );
+}
+
+function hud(){
+ document.getElementById("hp").style.width=Math.max(0,player.hp/player.maxHp*100)+"%";
+ document.getElementById("xp").style.width=player.xp/player.next*100+"%";
+ document.getElementById("level").textContent="LEVEL "+player.level;
+ document.getElementById("power").textContent="POWER "+Math.round(player.power);
+ document.getElementById("xpText").textContent=Math.floor(player.xp)+" / "+player.next;
+ document.getElementById("wanted").textContent="WANTED "+ "★".repeat(Math.ceil(player.wanted))+"☆".repeat(5-Math.ceil(player.wanted));
+ document.getElementById("mission").textContent="MISSION: Stop the thieves • "+player.kills+" / 8";
+}
+function mini(){
+ const c=document.getElementById("mini"),x=c.getContext("2d");x.clearRect(0,0,120,120);x.fillStyle="#253c2a";x.fillRect(0,0,120,120);
+ x.fillStyle="#4b5055";x.fillRect(0,57,120,6);x.fillRect(57,0,6,120);
+ const s=.23,center=60;
+ for(const e of enemies)if(e.visible){x.fillStyle="#ff3838";x.fillRect(center+e.position.x*s-2,center+e.position.z*s-2,4,4)}
+ x.fillStyle="#37e9ff";x.beginPath();x.arc(center+player.g.position.x*s,center+player.g.position.z*s,4,0,7);x.fill();
+ if(player.car){x.fillStyle="#ffe04a";x.fillRect(center+player.car.position.x*s-2,center+player.car.position.z*s-2,5,5)}
+}
+let last=performance.now();
+function loop(){
+ requestAnimationFrame(loop);let now=performance.now(),dt=Math.min(.05,(now-last)/1000);last=now;
+ cooldown=Math.max(0,cooldown-dt);
+ player.action=Math.max(0,player.action-dt);
+ movePlayer(dt);ai(dt);
+ const moving=player.inCar?Math.abs(player.car?.userData.speed||0)>1:player.moveAmount>.08;
+ animateCharacter(player.g,moving,dt);
+ for(const e of enemies)if(e.visible)animateCharacter(e,(e.userData.moveAmount||0)>.08,dt);
+ for(const p of cops)if(p.visible)animateCharacter(p,(p.userData.moveAmount||0)>.08,dt);
+ cam();hud();mini();renderer.render(scene,camera);
+}
+loop();
+addEventListener("resize",()=>{camera.aspect=innerWidth/innerHeight;camera.updateProjectionMatrix();renderer.setSize(innerWidth,innerHeight)});
+setTimeout(()=>msg("🏴‍☠️ WELCOME • Use both joysticks"),700);
+</script>
+<div id="weaponPanel" style="position:fixed;left:50%;bottom:14px;transform:translateX(-50%);display:flex;gap:6px;align-items:center;z-index:30;pointer-events:auto;font:700 12px Arial;user-select:none">
+  <button class="wp" data-w="Fists">👊<span>Fists</span></button>
+  <button class="wp" data-w="Bat">🏏<span>Bat</span></button>
+  <button class="wp" data-w="Pistol">🔫<span>Pistol</span></button>
+  <button class="wp" data-w="Rifle">🎯<span>Rifle</span></button>
+</div>
+<div id="weaponHUD" style="position:fixed;left:50%;bottom:66px;transform:translateX(-50%);padding:7px 12px;border-radius:12px;background:rgba(0,0,0,.62);color:#fff;font:700 13px Arial;z-index:29;pointer-events:none">Fists · Ammo ∞</div>
+<style>
+.wp{min-width:62px;height:48px;border:1px solid rgba(255,255,255,.25);border-radius:10px;background:rgba(18,22,28,.88);color:#fff;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:1px;touch-action:manipulation}.wp span{font-size:9px;opacity:.9}.wp.active{outline:2px solid #ffd54a;background:rgba(90,70,15,.92);transform:translateY(-2px)}
+@media(max-width:600px){.wp{min-width:54px;height:44px}.wp span{font-size:8px}}
+</style>
+<script>
+(()=>{
+ const hud=document.getElementById('weaponHUD');
+ const buttons=[...document.querySelectorAll('.wp')];
+ const weapons={Fists:{ammo:Infinity},Bat:{ammo:Infinity},Pistol:{ammo:24},Rifle:{ammo:60}};
+ let weapon='Fists';
+ function refresh(){const a=weapons[weapon].ammo; hud.textContent=weapon+' · '+(a===Infinity?'∞':a); buttons.forEach(b=>b.classList.toggle('active',b.dataset.w===weapon));}
+ window.setWeapon=(w)=>{if(!weapons[w])return; weapon=w; refresh(); if(window.msg)window.msg('WEAPON • '+w);};
+ window.useWeapon=()=>{if(weapon==='Fists'||weapon==='Bat')return true; if(weapons[weapon].ammo<=0){if(window.msg)window.msg('NO AMMO • '+weapon);return false;} weapons[weapon].ammo--; refresh(); return true;};
+ window.addAmmo=(n)=>{for(const k of ['Pistol','Rifle'])weapons[k].ammo+=n;refresh();};
+ buttons.forEach(b=>{b.addEventListener('pointerdown',e=>{e.preventDefault();e.stopPropagation();window.setWeapon(b.dataset.w);},{passive:false});});
+ window.addEventListener('keydown',e=>{const k=e.key;if(k==='1')setWeapon('Fists');else if(k==='2')setWeapon('Bat');else if(k==='3')setWeapon('Pistol');else if(k==='4')setWeapon('Rifle');});
+ refresh();
+})();
+</script></body>
+</html>
